@@ -23,9 +23,12 @@ hadoop jar $HADOOP_STREAMING_JAR \
 
 # View results
 echo "Analysis Results:"
-hdfs dfs -cat $OUTPUT_DIR/part-00000 | head -20
+hdfs dfs -cat $OUTPUT_DIR/part-00000 | head -50
 
 # Copy results back to local filesystem
 hdfs dfs -get $OUTPUT_DIR/part-00000 maintenance_analysis_results.json
 
 echo "Results saved to maintenance_analysis_results.json"
+
+# View json data results
+cat maintenance_analysis_results.json  | head -50
