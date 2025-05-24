@@ -1,0 +1,45 @@
+
+
+hdfs dfs -mkdir -p /input/words
+wget https://www.gutenberg.org/files/1342/1342-0.txt
+hdfs dfs -put 1342-0.txt /input/words
+hdfs dfs -ls /input/words
+
+cat 1342-0.txt | python3 mapper.py | sort -k1,1 | python3 reducer.py
+
+hdfs dfs -rm -r /output/wordcount-output
+
+hadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming-*.jar \
+    -files mapper.py,reducer.py \
+    -mapper "python3 mapper.py" \
+    -reducer "python3 reducer.py" \
+    -input /input/words \
+    -output /output/wordcount-output
+
+hdfs dfs -ls /output/wordcount-output
+hdfs dfs -cat /output/wordcount-output/part-00000 | head -20
+
+
+
+
+hdfs dfs -rm -r /user/output/word_count
+hdfs dfs -ls /user/output/word_count
+hdfs dfs -cat /user/output/word_count/part-00000 | head -20
+
+wget http://download.wikimedia.org/enwiki/20250520/enwiki-20250520-pages-logging3.xml.gz
+
+curl -# "http://download.wikimedia.org/enwiki/20250520/enwiki-20250520-pages-logging3.xml.gz" -o "enwiki-20250520-pages-logging3.xml.gz"
+
+
+scp -r enwiki-20250520-pages-logging3.xml hadoopuser@192.168.1.33:/home/hadoopuser
+
+hdfs dfs -ls /input/
+hdfs dfs -rm -r /input/fruit.txt
+hdfs dfs -rm -r /input/enwiki_namespace_0_0.jsonl
+
+hdfs dfs -put ~/enwiki-20250520-pages-logging3.xml /input/
+
+
+~/engse508-hana/lab2/basic/word_count
+
+/engse508-hana/lab2/basic/word_count$
