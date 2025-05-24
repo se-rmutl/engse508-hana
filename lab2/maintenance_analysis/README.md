@@ -103,3 +103,56 @@ def generate_sample_maintenance_logs(num_records=200000):
 
 ..
 ..
+
+## Useful Commands:
+```
+hdfs namenode -format
+
+start-dfs.sh
+start-yarn.sh
+
+stop-yarn.sh
+stop-dfs.sh
+
+hdfs dfsadmin -report
+
+hdfs dfsadmin -safemode leave
+
+```
+
+## Next Steps
+Your Hadoop cluster is now ready for MapReduce jobs. The cluster provides:
+* Distributed storage across 3 DataNodes
+* High availability with 3x replication
+* Resource management via YARN
+* Web monitoring interfaces
+
+## Summary of What You'll Get:
+The Installation Guide includes:
+* Prerequisites setup (Java, SSH, users)
+* Hostname configuration for your specific IPs
+* Hadoop installation and configuration
+* Cluster startup and verification steps
+* Troubleshooting tips
+
+
+## Python MapReduce Test includes:
+* Word count example (classic MapReduce demo)
+* An automated setup script that creates a mapper/reducer
+* Local testing before cluster execution
+* HDFS file operations
+* Result analysis and cluster monitoring
+
+
+## Key Features of Your Setup:
+* NameNode: 192.168.1.33 (hadoop-master) - manages metadata
+* DataNodes: 192.168.1.34-36 - store actual data with 3x replication
+* YARN: Resource management across the cluster
+* Web UIs: Monitor at port 9870 (HDFS) and 8088 (YARN)
+
+## The MapReduce test will verify that:
+* Data is properly distributed across your 3 DataNodes
+* Jobs can be submitted and executed via YARN
+* Results are correctly aggregated
+* The cluster is functioning optimally
+Once you complete the installation, run the test script to ensure everything works. The word count job will process text data and show you the cluster in action with real distributed computing!
