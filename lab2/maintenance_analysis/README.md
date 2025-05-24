@@ -44,7 +44,7 @@ Machine-Component Correlations - Which machines have issues with specific compon
 
 Prepare the files:
 ```
-bashchmod +x mapper.py reducer.py
+chmod +x mapper.py reducer.py
 python3 generate_sample_data.py  # Creates sample data
 ```
 Run the MapReduce job:
