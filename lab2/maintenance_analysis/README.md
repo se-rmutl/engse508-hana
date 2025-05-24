@@ -49,19 +49,20 @@ python3 generate_sample_data.py  # Creates sample data
 ```
 
 Configuration
+Clean up previous output
 ```
-# Clean up previous output
 hdfs dfs -rm -r /user/output/maintenance_analysis
+```
 
-# Copy input data to HDFS
+Copy input data to HDFS
+```
 hdfs dfs -mkdir -p /user/input/maintenance_logs
 hdfs dfs -put maintenance_logs.txt /user/input/maintenance_logs/
 ```
 
 Run the MapReduce job:
 ```
-# Run MapReduce job
-hadoop jar $HADOOP_STREAMING_JAR \
+hadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming-*.jar \
     -files mapper.py,reducer.py \
     -mapper "python3 mapper.py" \
     -reducer "python3 reducer.py" \
@@ -72,8 +73,9 @@ hadoop jar $HADOOP_STREAMING_JAR \
 View results:
 ```
 hdfs dfs -cat /user/output/maintenance_analysis/part-00000  | head -20
-
-# Copy results back to local filesystem
+```
+Copy results back to local filesystem
+```
 hdfs dfs -get /user/output/maintenance_analysis/part-00000 maintenance_analysis_results.json
 ```
 
