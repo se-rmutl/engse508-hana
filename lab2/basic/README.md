@@ -1,4 +1,4 @@
-# LAB2: The Analyzing Maintenance Logs
+# LAB2: MapReduce Basic
 
 ## Objective
 Hadoop MapReduce program in Python for analyzing maintenance logs. This example will process machine maintenance logs to extract insights like failure patterns, component statistics, and maintenance trends.
