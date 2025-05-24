@@ -41,6 +41,7 @@ Critical Incidents - Extended downtime events
 Machine-Component Correlations - Which machines have issues with specific components
 
 ## Usage:
+## A.Step-by-step:
 
 Prepare the files:
 ```
@@ -79,7 +80,15 @@ Copy results back to local filesystem
 hdfs dfs -get /user/output/maintenance_analysis/part-00000 maintenance_analysis_results.json
 ```
 
+View json data results:
+```
+cat maintenance_analysis_results.json  | head -20
+```
 
+## B.Using run script.:
 
-
-
+Prepare the files and run a script:
+```
+chmod +x run_analysis.sh
+./run_analysis.sh
+```
