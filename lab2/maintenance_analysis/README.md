@@ -39,3 +39,29 @@ Technician Workload - Task distribution across technicians
 Action Type Frequency - Types of maintenance performed
 Critical Incidents - Extended downtime events
 Machine-Component Correlations - Which machines have issues with specific components
+
+## Usage:
+
+Prepare the files:
+```
+bashchmod +x mapper.py reducer.py
+python3 generate_sample_data.py  # Creates sample data
+```
+Run the MapReduce job:
+```
+bashhadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming-*.jar \
+    -files mapper.py,reducer.py \
+    -mapper "python3 mapper.py" \
+    -reducer "python3 reducer.py" \
+    -input /path/to/maintenance/logs \
+    -output /path/to/output
+```
+View results:
+```
+hdfs dfs -cat /path/to/output/part-00000
+```
+
+
+
+
+
