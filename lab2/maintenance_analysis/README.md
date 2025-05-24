@@ -41,7 +41,7 @@ Critical Incidents - Extended downtime events
 Machine-Component Correlations - Which machines have issues with specific components
 
 ## Usage:
-## A.Step-by-step:
+## A.Step-by-step for understanding.
 
 Prepare the files:
 ```
@@ -85,10 +85,21 @@ View json data results:
 cat maintenance_analysis_results.json  | head -20
 ```
 
-## B.Using run script.:
+## B.Using run script.
 
 Prepare the files and run a script:
 ```
 chmod +x run_analysis.sh
 ./run_analysis.sh
 ```
+
+## Try to modify LAB2:
+For generate_sample_data.py file.
+Try to change number of sample logs to larger than you think ??.
+ie.
+
+def generate_sample_maintenance_logs(num_records=200000):
+    """Generate sample maintenance log data"""
+
+..
+..
