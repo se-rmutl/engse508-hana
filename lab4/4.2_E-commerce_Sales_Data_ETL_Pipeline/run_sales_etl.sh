@@ -25,7 +25,7 @@ echo "Uploading data to HDFS..."
 hdfs dfs -put ecommerce_data.csv $INPUT_DIR/
 
 # Make scripts executable
-chmod +x sales_mapper.py sales_reducer.py
+chmod +x mapper.py reducer.py
 
 # Run MapReduce job
 echo "Running MapReduce job..."
