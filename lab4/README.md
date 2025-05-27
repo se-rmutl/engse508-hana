@@ -947,7 +947,7 @@ echo "Uploading data to HDFS..."
 hdfs dfs -put ecommerce_data.csv $INPUT_DIR/
 
 # Make scripts executable
-chmod +x sales_mapper.py sales_reducer.py
+chmod +x mapper.py reducer.py
 
 # Run MapReduce job
 echo "Running MapReduce job..."
@@ -1601,7 +1601,7 @@ echo "Uploading data to HDFS..."
 hdfs dfs -put iot_sensor_data.json $INPUT_DIR/
 
 # Make scripts executable
-chmod +x iot_mapper.py iot_reducer.py
+chmod +x mapper.py reducer.py
 
 # Run MapReduce job
 echo "Running IoT MapReduce job..."
