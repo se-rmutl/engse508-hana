@@ -642,7 +642,7 @@ cat etl_quality_report.txt
 hdfs dfs -cat /etl_output/part-00000 | grep "^ENRICHED" | head -10
 ```
 
-## 2: E-commerce Sales Data ETL Pipeline
+## 4.2 E-commerce Sales Data ETL Pipeline
 ### Overview
 This lab processes large e-commerce transaction data to extract sales insights, transforming raw transaction logs into meaningful business metrics.
 
@@ -971,42 +971,794 @@ echo "Results saved to sales_results.txt"
 echo "Visualizations saved to ecommerce_analysis.png"
 ```
 
+## 4.3 IoT Sensor Data ETL Pipeline
+### Overview
+This lab processes IoT sensor data from multiple devices to detect anomalies, calculate aggregations, and generate alerts for monitoring systems.
 
+### Dataset Description
+*Source: IoT sensor readings (temperature, humidity, pressure, vibration)
+*Format: JSON logs with nested structure
+*Size: Simulating 50M+ sensor readings
+
+### IoT Data Generator (generate_iot_data.py)
 ```
+#!/usr/bin/env python3
+import json
+import random
+import time
+from datetime import datetime, timedelta
+import uuid
 
-```
+def generate_iot_data(num_records=2000000, filename='iot_sensor_data.json'):
+    """Generate synthetic IoT sensor data"""
+    
+    device_types = ['Temperature', 'Humidity', 'Pressure', 'Vibration', 'Light']
+    locations = ['Factory_Floor_A', 'Factory_Floor_B', 'Warehouse_1', 'Warehouse_2', 'Office_Building']
+    
+    with open(filename, 'w') as f:
+        start_time = datetime.now() - timedelta(days=30)
+        
+        for i in range(num_records):
+            # Simulate some devices having issues (anomalies)
+            is_anomaly = random.random() < 0.05  # 5% anomaly rate
+            
+            device_id = f"DEVICE_{random.randint(1, 1000)}"
+            device_type = random.choice(device_types)
+            location = random.choice(locations)
+            
+            # Generate sensor values based on type
+            if device_type == 'Temperature':
+                normal_value = random.uniform(18, 25)  # Normal room temperature
+                value = random.uniform(45, 60) if is_anomaly else normal_value
+                unit = 'Celsius'
+            elif device_type == 'Humidity':
+                normal_value = random.uniform(30, 70)  # Normal humidity
+                value = random.uniform(85, 95) if is_anomaly else normal_value
+                unit = 'Percent'
+            elif device_type == 'Pressure':
+                normal_value = random.uniform(1010, 1030)  # Normal atmospheric pressure
+                value = random.uniform(980, 1000) if is_anomaly else normal_value
+                unit = 'hPa'
+            elif device_type == 'Vibration':
+                normal_value = random.uniform(0, 5)  # Normal vibration
+                value = random.uniform(15, 25) if is_anomaly else normal_value
+                unit = 'm/s²'
+            else:  # Light
+                normal_value = random.uniform(200, 800)  # Normal light levels
+                value = random.uniform(0, 50) if is_anomaly else normal_value
+                unit = 'Lux'
+            
+            timestamp = start_time + timedelta(minutes=random.randint(0, 43200))  # 30 days in minutes
+            
+            record = {
+                'device_id': device_id,
+                'device_type': device_type,
+                'location': location,
+                'timestamp': timestamp.isoformat(),
+                'value': round(value, 2),
+                'unit': unit,
+                'battery_level': random.uniform(10, 100),
+                'signal_strength': random.uniform(-100, -20),
+                'is_anomaly': is_anomaly  # This would not be in real data, just for validation
+            }
+            
+            f.write(json.dumps(record) + '\n')
+    
+    print(f"Generated {num_records} IoT sensor records in {filename}")
 
-
-## 3: Temperature Data Analysis
-Difficulty: Beginner-Intermediate
-Time: 1 hour
-### Objective
-Process weather data to find maximum temperatures by year.
-Step-by-Step Instructions
-
-### Generate Sample Weather Data:
-```
-
+if __name__ == "__main__":
+    generate_iot_data(2000000)  # Generate 2M records
 ```
 
 ### Mapper (mapper.py):
 ```
+#!/usr/bin/env python3
+import sys
+import json
+from datetime import datetime
+import math
 
+def detect_anomaly(device_type, value):
+    """Simple anomaly detection based on device type"""
+    thresholds = {
+        'Temperature': {'min': 10, 'max': 35},
+        'Humidity': {'min': 20, 'max': 80},
+        'Pressure': {'min': 1000, 'max': 1040},
+        'Vibration': {'min': 0, 'max': 10},
+        'Light': {'min': 100, 'max': 1000}
+    }
+    
+    if device_type in thresholds:
+        return value < thresholds[device_type]['min'] or value > thresholds[device_type]['max']
+    return False
+
+def main():
+    """
+    Mapper for IoT sensor data
+    Emits various key-value pairs for different analyses
+    """
+    for line in sys.stdin:
+        try:
+            data = json.loads(line.strip())
+            
+            device_id = data['device_id']
+            device_type = data['device_type']
+            location = data['location']
+            timestamp = data['timestamp']
+            value = float(data['value'])
+            battery_level = float(data['battery_level'])
+            
+            # Parse timestamp for time-based aggregations
+            dt = datetime.fromisoformat(timestamp)
+            hour = dt.strftime('%Y-%m-%d-%H')
+            day = dt.strftime('%Y-%m-%d')
+            
+            # 1. Hourly averages by location and device type
+            print(f"hourly_{location}_{device_type}_{hour}\t{value}")
+            
+            # 2. Daily statistics by device
+            print(f"daily_{device_id}_{day}\t{value}")
+            
+            # 3. Anomaly detection
+            if detect_anomaly(device_type, value):
+                print(f"anomaly_{device_type}_{location}\t{device_id}|{value}|{timestamp}")
+            
+            # 4. Battery monitoring (low battery alerts)
+            if battery_level < 20:
+                print(f"low_battery_{location}\t{device_id}|{battery_level}|{timestamp}")
+            
+            # 5. Device performance metrics
+            print(f"device_stats_{device_id}\t{value}|{battery_level}")
+            
+            # 6. Location-based aggregations
+            print(f"location_summary_{location}_{device_type}\t{value}")
+            
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            # Skip malformed records
+            continue
+
+if __name__ == "__main__":
+    main()
 ```
 
 ### Reducer (reducer.py):
 ```
+#!/usr/bin/env python3
+import sys
+import json
+from collections import defaultdict
+import math
 
+def calculate_statistics(values):
+    """Calculate statistical measures for a list of values"""
+    if not values:
+        return {}
+    
+    n = len(values)
+    mean = sum(values) / n
+    variance = sum((x - mean) ** 2 for x in values) / n
+    std_dev = math.sqrt(variance)
+    
+    sorted_values = sorted(values)
+    median = sorted_values[n // 2] if n % 2 == 1 else (sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2
+    
+    return {
+        'count': n,
+        'mean': round(mean, 2),
+        'median': round(median, 2),
+        'std_dev': round(std_dev, 2),
+        'min': min(values),
+        'max': max(values)
+    }
+
+def main():
+    """
+    Reducer for IoT sensor data
+    Aggregates and calculates statistics for different key types
+    """
+    current_key = None
+    values = []
+    anomalies = []
+    battery_alerts = []
+    device_metrics = []
+    
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        
+        try:
+            key, value = line.split('\t', 1)
+            
+            if current_key != key:
+                # Process the previous group
+                if current_key:
+                    process_group(current_key, values, anomalies, battery_alerts, device_metrics)
+                
+                # Reset for new group
+                current_key = key
+                values = []
+                anomalies = []
+                battery_alerts = []
+                device_metrics = []
+            
+            # Categorize the value based on key type
+            if current_key.startswith('anomaly_'):
+                anomalies.append(value)
+            elif current_key.startswith('low_battery_'):
+                battery_alerts.append(value)
+            elif current_key.startswith('device_stats_'):
+                device_metrics.append(value)
+            else:
+                # Numeric values for aggregation
+                try:
+                    values.append(float(value))
+                except ValueError:
+                    # Skip non-numeric values
+                    continue
+        
+        except ValueError:
+            continue
+    
+    # Process the last group
+    if current_key:
+        process_group(current_key, values, anomalies, battery_alerts, device_metrics)
+
+def process_group(key, values, anomalies, battery_alerts, device_metrics):
+    """Process a group of values based on the key type"""
+    
+    if key.startswith('hourly_') or key.startswith('daily_') or key.startswith('location_summary_'):
+        # Statistical aggregation
+        if values:
+            stats = calculate_statistics(values)
+            output = {
+                'key': key,
+                'type': 'statistics',
+                'data': stats
+            }
+            print(json.dumps(output))
+    
+    elif key.startswith('anomaly_'):
+        # Anomaly reporting
+        if anomalies:
+            output = {
+                'key': key,
+                'type': 'anomalies',
+                'count': len(anomalies),
+                'anomalies': anomalies[:10]  # Limit to first 10 for output size
+            }
+            print(json.dumps(output))
+    
+    elif key.startswith('low_battery_'):
+        # Battery alerts
+        if battery_alerts:
+            output = {
+                'key': key,
+                'type': 'battery_alerts',
+                'count': len(battery_alerts),
+                'alerts': battery_alerts
+            }
+            print(json.dumps(output))
+    
+    elif key.startswith('device_stats_'):
+        # Device performance metrics
+        if device_metrics:
+            sensor_values = []
+            battery_values = []
+            
+            for metric in device_metrics:
+                parts = metric.split('|')
+                if len(parts) == 2:
+                    sensor_values.append(float(parts[0]))
+                    battery_values.append(float(parts[1]))
+            
+            output = {
+                'key': key,
+                'type': 'device_performance',
+                'sensor_stats': calculate_statistics(sensor_values),
+                'battery_stats': calculate_statistics(battery_values),
+                'health_score': calculate_health_score(sensor_values, battery_values)
+            }
+            print(json.dumps(output))
+
+def calculate_health_score(sensor_values, battery_values):
+    """Calculate a simple health score for the device"""
+    if not sensor_values or not battery_values:
+        return 0
+    
+    # Simple scoring based on battery level and sensor stability
+    avg_battery = sum(battery_values) / len(battery_values)
+    sensor_stability = 100 - (math.sqrt(sum((x - sum(sensor_values)/len(sensor_values))**2 for x in sensor_values) / len(sensor_values)))
+    
+    health_score = (avg_battery * 0.4 + max(0, sensor_stability) * 0.6)
+    return min(100, max(0, round(health_score, 1)))
+
+if __name__ == "__main__":
+    main()
 ```
 
-### Run Job
+### IoT Results Analyzer (analyze_iot_results.py)
 ```
+#!/usr/bin/env python3
+import json
+import sys
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime
+import seaborn as sns
+
+def analyze_iot_results(input_file):
+    """Analyze IoT MapReduce results and generate reports"""
+    
+    statistics = []
+    anomalies = []
+    battery_alerts = []
+    device_performance = []
+    
+    # Parse MapReduce output
+    with open(input_file, 'r') as f:
+        for line in f:
+            try:
+                data = json.loads(line.strip())
+                
+                if data['type'] == 'statistics':
+                    statistics.append(data)
+                elif data['type'] == 'anomalies':
+                    anomalies.append(data)
+                elif data['type'] == 'battery_alerts':
+                    battery_alerts.append(data)
+                elif data['type'] == 'device_performance':
+                    device_performance.append(data)
+            except (json.JSONDecodeError, KeyError):
+                continue
+    
+    # Generate comprehensive report
+    print("=== IoT SENSOR DATA ANALYSIS REPORT ===\n")
+    
+    # 1. System Overview
+    print("1. SYSTEM OVERVIEW")
+    print(f"   - Total statistical aggregations: {len(statistics)}")
+    print(f"   - Anomaly groups detected: {len(anomalies)}")
+    print(f"   - Low battery alerts: {len(battery_alerts)}")
+    print(f"   - Devices monitored: {len(device_performance)}")
+    
+    # 2. Anomaly Analysis
+    total_anomalies = sum(a['count'] for a in anomalies)
+    print(f"\n2. ANOMALY DETECTION")
+    print(f"   - Total anomalies detected: {total_anomalies}")
+    
+    if anomalies:
+        print("   - Top anomaly sources:")
+        sorted_anomalies = sorted(anomalies, key=lambda x: x['count'], reverse=True)
+        for i, anomaly in enumerate(sorted_anomalies[:5], 1):
+            key_parts = anomaly['key'].split('_')
+            device_type = key_parts[1] if len(key_parts) > 1 else 'Unknown'
+            location = key_parts[2] if len(key_parts) > 2 else 'Unknown'
+            print(f"     {i}. {device_type} sensors in {location}: {anomaly['count']} anomalies")
+    
+    # 3. Battery Health
+    total_battery_alerts = sum(b['count'] for b in battery_alerts)
+    print(f"\n3. BATTERY HEALTH")
+    print(f"   - Total low battery alerts: {total_battery_alerts}")
+    
+    if battery_alerts:
+        print("   - Locations with most battery issues:")
+        location_battery_issues = {}
+        for alert in battery_alerts:
+            location = alert['key'].split('_')[2] if len(alert['key'].split('_')) > 2 else 'Unknown'
+            location_battery_issues[location] = location_battery_issues.get(location, 0) + alert['count']
+        
+        sorted_locations = sorted(location_battery_issues.items(), key=lambda x: x[1], reverse=True)
+        for i, (location, count) in enumerate(sorted_locations[:5], 1):
+            print(f"     {i}. {location}: {count} devices")
+    
+    # 4. Device Performance
+    print(f"\n4. DEVICE PERFORMANCE")
+    if device_performance:
+        health_scores = [d['health_score'] for d in device_performance if 'health_score' in d]
+        if health_scores:
+            avg_health = sum(health_scores) / len(health_scores)
+            print(f"   - Average system health score: {avg_health:.1f}/100")
+            
+            # Identify devices needing attention
+            poor_devices = [d for d in device_performance if d.get('health_score', 100) < 50]
+            print(f"   - Devices requiring attention: {len(poor_devices)}")
+            
+            if poor_devices:
+                print("   - Worst performing devices:")
+                sorted_poor = sorted(poor_devices, key=lambda x: x.get('health_score', 0))
+                for i, device in enumerate(sorted_poor[:5], 1):
+                    device_id = device['key'].split('_')[2] if len(device['key'].split('_')) > 2 else 'Unknown'
+                    print(f"     {i}. {device_id}: Health Score {device.get('health_score', 0)}/100")
+    
+    # 5. Operational Insights
+    print(f"\n5. OPERATIONAL INSIGHTS")
+    
+    # Location analysis
+    location_stats = {}
+    for stat in statistics:
+        if stat['key'].startswith('location_summary_'):
+            key_parts = stat['key'].split('_')
+            if len(key_parts) >= 4:
+                location = key_parts[2]
+                device_type = key_parts[3]
+                
+                if location not in location_stats:
+                    location_stats[location] = {}
+                
+                location_stats[location][device_type] = stat['data']
+    
+    if location_stats:
+        print("   - Location Performance Summary:")
+        for location, devices in location_stats.items():
+            total_readings = sum(d.get('count', 0) for d in devices.values())
+            print(f"     {location}: {total_readings} total readings across {len(devices)} device types")
+    
+    return statistics, anomalies, battery_alerts, device_performance
+
+def create_iot_visualizations(statistics, anomalies, battery_alerts, device_performance):
+    """Create visualizations for IoT analysis"""
+    
+    plt.figure(figsize=(15, 12))
+    
+    # 1. Anomaly distribution by device type
+    plt.subplot(2, 3, 1)
+    device_anomalies = {}
+    for anomaly in anomalies:
+        key_parts = anomaly['key'].split('_')
+        device_type = key_parts[1] if len(key_parts) > 1 else 'Unknown'
+        device_anomalies[device_type] = device_anomalies.get(device_type, 0) + anomaly['count']
+    
+    if device_anomalies:
+        plt.bar(device_anomalies.keys(), device_anomalies.values(), color='red', alpha=0.7)
+        plt.title('Anomalies by Device Type')
+        plt.xlabel('Device Type')
+        plt.ylabel('Number of Anomalies')
+        plt.xticks(rotation=45)
+    
+    # 2. Health score distribution
+    plt.subplot(2, 3, 2)
+    health_scores = [d['health_score'] for d in device_performance if 'health_score' in d]
+    if health_scores:
+        plt.hist(health_scores, bins=20, color='green', alpha=0.7, edgecolor='black')
+        plt.title('Device Health Score Distribution')
+        plt.xlabel('Health Score')
+        plt.ylabel('Number of Devices')
+        plt.axvline(sum(health_scores)/len(health_scores), color='red', linestyle='--', 
+                   label=f'Average: {sum(health_scores)/len(health_scores):.1f}')
+        plt.legend()
+    
+    # 3. Battery alerts by location
+    plt.subplot(2, 3, 3)
+    location_battery_issues = {}
+    for alert in battery_alerts:
+        location = alert['key'].split('_')[2] if len(alert['key'].split('_')) > 2 else 'Unknown'
+        location_battery_issues[location] = location_battery_issues.get(location, 0) + alert['count']
+    
+    if location_battery_issues:
+        plt.bar(location_battery_issues.keys(), location_battery_issues.values(), 
+                color='orange', alpha=0.7)
+        plt.title('Battery Alerts by Location')
+        plt.xlabel('Location')
+        plt.ylabel('Number of Alerts')
+        plt.xticks(rotation=45)
+    
+    # 4. Average sensor readings by device type
+    plt.subplot(2, 3, 4)
+    device_type_stats = {}
+    for stat in statistics:
+        if stat['key'].startswith('location_summary_'):
+            key_parts = stat['key'].split('_')
+            if len(key_parts) >= 4:
+                device_type = key_parts[3]
+                if device_type not in device_type_stats:
+                    device_type_stats[device_type] = []
+                device_type_stats[device_type].append(stat['data']['mean'])
+    
+    if device_type_stats:
+        device_types = list(device_type_stats.keys())
+        avg_readings = [sum(readings)/len(readings) for readings in device_type_stats.values()]
+        plt.bar(device_types, avg_readings, color='blue', alpha=0.7)
+        plt.title('Average Sensor Readings by Type')
+        plt.xlabel('Device Type')
+        plt.ylabel('Average Reading')
+        plt.xticks(rotation=45)
+    
+    # 5. Data quality metrics
+    plt.subplot(2, 3, 5)
+    total_readings = sum(stat['data']['count'] for stat in statistics if 'data' in stat)
+    total_anomalies = sum(a['count'] for a in anomalies)
+    total_battery_alerts = sum(b['count'] for b in battery_alerts)
+    
+    categories = ['Normal\nReadings', 'Anomalies', 'Battery\nAlerts']
+    values = [total_readings - total_anomalies, total_anomalies, total_battery_alerts]
+    colors = ['green', 'red', 'orange']
+    
+    plt.pie(values, labels=categories, colors=colors, autopct='%1.1f%%', startangle=90)
+    plt.title('Data Quality Overview')
+    
+    # 6. System reliability trend (simulated hourly data)
+    plt.subplot(2, 3, 6)
+    # Extract hourly data for trend analysis
+    hourly_data = {}
+    for stat in statistics:
+        if stat['key'].startswith('hourly_'):
+            key_parts = stat['key'].split('_')
+            if len(key_parts) >= 4:
+                hour = key_parts[-1]  # Last part should be the hour
+                if hour not in hourly_data:
+                    hourly_data[hour] = {'readings': 0, 'devices': 0}
+                hourly_data[hour]['readings'] += stat['data']['count']
+                hourly_data[hour]['devices'] += 1
+    
+    if hourly_data:
+        sorted_hours = sorted(hourly_data.keys())[-24:]  # Last 24 hours
+        reading_counts = [hourly_data[hour]['readings'] for hour in sorted_hours]
+        
+        plt.plot(range(len(sorted_hours)), reading_counts, marker='o', color='purple')
+        plt.title('Readings Volume (Last 24 Hours)')
+        plt.xlabel('Time (Hours Ago)')
+        plt.ylabel('Number of Readings')
+        plt.xticks(range(0, len(sorted_hours), 4), 
+                  [f'{24-i}h' for i in range(0, len(sorted_hours), 4)])
+    
+    plt.tight_layout()
+    plt.savefig('iot_analysis_dashboard.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+def generate_alerts(anomalies, battery_alerts, device_performance):
+    """Generate actionable alerts for operations team"""
+    
+    alerts = []
+    
+    # Critical anomalies
+    critical_anomalies = [a for a in anomalies if a['count'] > 10]
+    for anomaly in critical_anomalies:
+        key_parts = anomaly['key'].split('_')
+        device_type = key_parts[1] if len(key_parts) > 1 else 'Unknown'
+        location = key_parts[2] if len(key_parts) > 2 else 'Unknown'
+        
+        alerts.append({
+            'severity': 'HIGH',
+            'type': 'ANOMALY_CLUSTER',
+            'message': f'High anomaly rate detected: {anomaly["count"]} anomalies from {device_type} sensors in {location}',
+            'action': f'Investigate {device_type} sensors in {location} for hardware issues or environmental changes'
+        })
+    
+    # Battery maintenance
+    critical_battery = [b for b in battery_alerts if b['count'] > 5]
+    for battery in critical_battery:
+        location = battery['key'].split('_')[2] if len(battery['key'].split('_')) > 2 else 'Unknown'
+        
+        alerts.append({
+            'severity': 'MEDIUM',
+            'type': 'BATTERY_MAINTENANCE',
+            'message': f'Multiple low battery devices in {location}: {battery["count"]} devices need attention',
+            'action': f'Schedule battery replacement/charging for devices in {location}'
+        })
+    
+    # Poor performing devices
+    poor_devices = [d for d in device_performance if d.get('health_score', 100) < 30]
+    for device in poor_devices:
+        device_id = device['key'].split('_')[2] if len(device['key'].split('_')) > 2 else 'Unknown'
+        
+        alerts.append({
+            'severity': 'HIGH',
+            'type': 'DEVICE_FAILURE',
+            'message': f'Device {device_id} health score critically low: {device.get("health_score", 0)}/100',
+            'action': f'Immediate inspection required for device {device_id} - potential hardware failure'
+        })
+    
+    return sorted(alerts, key=lambda x: {'HIGH': 3, 'MEDIUM': 2, 'LOW': 1}[x['severity']], reverse=True)
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python analyze_iot_results.py <mapreduce_output_file>")
+        sys.exit(1)
+    
+    statistics, anomalies, battery_alerts, device_performance = analyze_iot_results(sys.argv[1])
+    create_iot_visualizations(statistics, anomalies, battery_alerts, device_performance)
+    
+    # Generate operational alerts
+    alerts = generate_alerts(anomalies, battery_alerts, device_performance)
+    
+    if alerts:
+        print(f"\n6. OPERATIONAL ALERTS ({len(alerts)} total)")
+        for i, alert in enumerate(alerts[:10], 1):  # Show top 10 alerts
+            print(f"   {i}. [{alert['severity']}] {alert['type']}")
+            print(f"      {alert['message']}")
+            print(f"      Action: {alert['action']}\n")
+    
+    print("Analysis complete! Check iot_analysis_dashboard.png for visualizations.")
+```
+
+### Hadoop Job Execution Script (run_iot_etl.sh)
+```
+#!/bin/bash
+
+# Lab 2: IoT Sensor Data ETL Pipeline
+
+echo "Starting IoT Sensor Data ETL Pipeline..."
+
+# Configuration
+INPUT_DIR="/user/input/iot"
+OUTPUT_DIR="/user/output/iot_analysis"
+LOCAL_DATA_DIR="./data"
+
+# Clean up previous runs
+hdfs dfs -rm -r $OUTPUT_DIR 2>/dev/null
+
+# Create directories
+hdfs dfs -mkdir -p $INPUT_DIR
+mkdir -p $LOCAL_DATA_DIR
+
+# Generate IoT data
+echo "Generating IoT sensor data..."
+python3 generate_iot_data.py
+
+# Upload data to HDFS
+echo "Uploading data to HDFS..."
+hdfs dfs -put iot_sensor_data.json $INPUT_DIR/
+
+# Make scripts executable
+chmod +x iot_mapper.py iot_reducer.py
+
+# Run MapReduce job
+echo "Running IoT MapReduce job..."
+
 hadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming-*.jar \
     -files mapper.py,reducer.py \
     -mapper "python3 mapper.py" \
     -reducer "python3 reducer.py" \
-    -input /input \
-    -output /output
+    -input $INPUT_DIR/iot_sensor_data.json \
+    -output $OUTPUT_DIR
 
-hdfs dfs -cat /output/part-00000
+# Download results
+echo "Downloading results..."
+hdfs dfs -get $OUTPUT_DIR/part-00000 ./iot_results.json
+
+# Analyze results and generate reports
+echo "Analyzing IoT results..."
+python3 analyze_iot_results.py iot_results.json
+
+echo "IoT Sensor Data ETL Pipeline completed!"
+echo "Results saved to iot_results.json"
+echo "Dashboard saved to iot_analysis_dashboard.png"
 ```
+
+## Real-World Applications and Business Value
+
+### Lab: E-commerce Sales ETL - Business Applications
+1. Revenue Optimization
+
+Customer Segmentation: Identify high-value customers for targeted marketing
+Product Performance: Optimize inventory based on sales velocity
+Regional Analysis: Adjust marketing strategies by geographic performance
+Seasonal Trends: Plan inventory and promotions based on temporal patterns
+
+2. Operational Efficiency
+
+Supply Chain: Predict demand spikes and adjust procurement
+Marketing ROI: Measure campaign effectiveness across customer segments
+Pricing Strategy: Dynamic pricing based on demand patterns and customer behavior
+
+3. Strategic Decision Making
+
+Market Expansion: Identify successful regions for business expansion
+Product Development: Focus R&D on high-performing product categories
+Customer Retention: Implement targeted retention programs for at-risk customers
+
+### Lab: IoT Sensor Data ETL - Industrial Applications
+1. Predictive Maintenance
+Equipment Health: Monitor device performance to predict failures
+Maintenance Scheduling: Optimize maintenance windows based on usage patterns
+Cost Reduction: Reduce unplanned downtime by 30-40%
+
+2. Operational Excellence
+Environmental Monitoring: Ensure optimal conditions for manufacturing
+Energy Optimization: Reduce energy consumption through intelligent monitoring
+Safety Compliance: Automatic alerts for hazardous conditions
+
+3. Business Intelligence
+Asset Utilization: Track equipment usage for capacity planning
+Performance Benchmarking: Compare facilities and identify best practices
+Investment Planning: Data-driven decisions for equipment upgrades
+
+## Scaling and Production Considerations
+### Performance Optimization
+```
+# Optimize Hadoop configuration for large datasets
+# In mapred-site.xml:
+<property>
+    <name>mapreduce.job.maps</name>
+    <value>10</value>
+</property>
+<property>
+    <name>mapreduce.job.reduces</name>
+    <value>5</value>
+</property>
+<property>
+    <name>mapreduce.map.memory.mb</name>
+    <value>2048</value>
+</property>
+<property>
+    <name>mapreduce.reduce.memory.mb</name>
+    <value>4096</value>
+</property>
+```
+
+### Data Pipeline Automation
+```
+# Cron job for automated ETL execution
+# 0 2 * * * /path/to/run_sales_etl.sh >> /var/log/etl_sales.log 2>&1
+# 0 3 * * * /path/to/run_iot_etl.sh >> /var/log/etl_iot.log 2>&1
+```
+
+## Integration with External Systems
+* Data Warehouses: Export results to Snowflake, Redshift, or BigQuery
+* Visualization Tools: Connect with Tableau, Power BI, or Grafana
+* Alert Systems: Integration with PagerDuty, Slack, or custom notification systems
+* Machine Learning: Feed processed data into ML pipelines for advanced analytics
+
+### Monitoring and Observability
+```
+# Add monitoring to mapper/reducer scripts
+import logging
+import time
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Performance monitoring
+start_time = time.time()
+record_count = 0
+
+# Add to main processing loop
+record_count += 1
+if record_count % 10000 == 0:
+    elapsed = time.time() - start_time
+    rate = record_count / elapsed
+    logger.info(f"Processed {record_count} records at {rate:.2f} records/sec")
+```
+
+## Setup Instructions
+
+### Prerequisites
+* Hadoop Cluster: Properly configured Hadoop 3.x environment
+* Python 3.7+: With required libraries (pandas, matplotlib, seaborn)
+* HDFS Access: Write permissions to input/output directories
+* Memory: At least 8GB RAM for processing large datasets
+
+### Installation Steps
+```
+# 1. Clone the lab files
+git clone <repository_url>
+cd hadoop-etl-labs
+
+# 2. Install Python dependencies
+pip install pandas matplotlib seaborn
+
+# 3. Set up Hadoop environment
+export HADOOP_HOME=/path/to/hadoop
+export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
+
+# 4. Create HDFS directories
+hdfs dfs -mkdir -p /user/input/ecommerce
+hdfs dfs -mkdir -p /user/input/iot
+hdfs dfs -mkdir -p /user/output
+
+# 5. Make scripts executable
+chmod +x *.py *.sh
+
+# 6. Run the labs
+./run_sales_etl.sh    # Lab 4.2
+./run_iot_etl.sh      # Lab 4.3
+```
+
+### Troubleshooting Common Issues
+1. Memory Errors: Increase JVM heap size in hadoop-env.sh
+2. Permissions: Ensure HDFS permissions are correctly set
+3. Python Path: Verify Python3 is in PATH on all cluster nodes
+4. Streaming JAR: Update path to hadoop-streaming jar if different
+
+These labs provide comprehensive hands-on experience with real-world ETL scenarios using Hadoop MapReduce, demonstrating both technical implementation and practical business applications.
