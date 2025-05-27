@@ -1,155 +1,441 @@
 # LAB3:  ETL (Extract, Transform, Load) processes using Hadoop MapReduce
 
+## 1.Word Count with File Processing
+Difficulty: Beginner
+Time: 45 minutes
 ## Objective
-Hadoop MapReduce program in Python for analyzing maintenance logs. This example will process machine maintenance logs to extract insights like failure patterns, component statistics, and maintenance trends.
+Process multiple text files and count word frequencies with improved error handling.
+Step-by-Step Instructions
+## Enhanced Mapper (mapper.py):
+```
+#!/usr/bin/env python3
+import sys
+import re
 
-## Key Features:
+def clean_word(word):
+    # Remove punctuation and convert to lowercase
+    return re.sub(r'[^\w]', '', word.lower())
 
-## Mapper (mapper.py):
+for line in sys.stdin:
+    try:
+        line = line.strip()
+        words = line.split()
+        for word in words:
+            clean = clean_word(word)
+            if clean:  # Only emit non-empty words
+                print(f"{clean}\t1")
+    except Exception as e:
+        # Log errors to stderr
+        sys.stderr.write(f"Error processing line: {e}\n")
+        continue
+```
 
-Parses maintenance logs in JSON or pipe-separated format
-Extracts multiple analytics dimensions:
+## Enhanced Reducer (reducer.py):
+```
+#!/usr/bin/env python3
+import sys
+from collections import defaultdict
 
-Component failure frequencies
-Machine downtime statistics
-Error severity distributions
-Hourly/monthly maintenance patterns
-Technician workloads
-Machine-component correlations
+word_counts = defaultdict(int)
 
-## Reducer (reducer.py):
+for line in sys.stdin:
+    try:
+        line = line.strip()
+        if not line:
+            continue
+        word, count = line.split('\t')
+        word_counts[word] += int(count)
+    except ValueError:
+        sys.stderr.write(f"Invalid line format: {line}\n")
+        continue
 
-Aggregates data for comprehensive insights
-Outputs structured JSON results for each analysis type
-Calculates statistics like averages, totals, and counts
+# Output sorted results
+for word in sorted(word_counts.keys()):
+    print(f"{word}\t{word_counts[word]}")
+```
 
 ## Sample Data Generator:
-
-Creates realistic maintenance log data for testing
-Includes 50 machines, various components, and realistic failure patterns
-Generates time-correlated data with work-hour weighting
-
-## Analytics Provided:
-
-Component Failure Analysis - Which components fail most frequently
-Machine Downtime Stats - Total, average, and maximum downtime per machine
-Severity Distribution - Breakdown of issue criticality
-Temporal Patterns - When maintenance occurs (hourly/monthly trends)
-Technician Workload - Task distribution across technicians
-Action Type Frequency - Types of maintenance performed
-Critical Incidents - Extended downtime events
-Machine-Component Correlations - Which machines have issues with specific components
-
-## Usage:
-## A.Step-by-step for understanding.
-
-Prepare the files:
 ```
-chmod +x mapper.py reducer.py
-python3 generate_sample_data.py  # Creates sample data
-```
+# Create sample text files
+mkdir sample_data
+cat > sample_data/file1.txt << EOF
+The quick brown fox jumps over the lazy dog.
+The dog was sleeping under the tree.
+EOF
 
-Configuration
-Clean up previous output
-```
-hdfs dfs -rm -r /user/output/maintenance_analysis
-```
+cat > sample_data/file2.txt << EOF
+Python is a great programming language.
+Hadoop MapReduce is powerful for big data processing.
+EOF
 
-Copy input data to HDFS
+# Upload to HDFS
+hdfs dfs -rm -r /input /output 2>/dev/null
+hdfs dfs -mkdir /input
+hdfs dfs -put sample_data/* /input/
 ```
-hdfs dfs -mkdir -p /user/input/maintenance_logs
-hdfs dfs -put maintenance_logs.txt /user/input/maintenance_logs/
-```
-
-Run the MapReduce job:
+## Run Enhanced Job
 ```
 hadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming-*.jar \
     -files mapper.py,reducer.py \
     -mapper "python3 mapper.py" \
     -reducer "python3 reducer.py" \
-    -input /user/input/maintenance_logs \
-    -output /user/output/maintenance_analysis
+    -input /input \
+    -output /output
+
+hdfs dfs -cat /output/part-00000
 ```
 
-View results:
-```
-hdfs dfs -cat /user/output/maintenance_analysis/part-00000  | head -20
-```
-Copy results back to local filesystem
-```
-hdfs dfs -get /user/output/maintenance_analysis/part-00000 maintenance_analysis_results.json
-```
+## 2: Temperature Data Analysis
+Difficulty: Beginner-Intermediate
+Time: 1 hour
+## Objective
+Process weather data to find maximum temperatures by year.
+Step-by-Step Instructions
 
-View json data results:
+## Generate Sample Weather Data:
 ```
-cat maintenance_analysis_results.json  | head -20
-```
+import random
+import datetime
 
-## B.Using run script.
-
-Prepare the files and run a script:
-```
-chmod +x run_analysis.sh
-./run_analysis.sh
-```
-
-## Try to modify LAB2:
-For generate_sample_data.py file.
-Try to change number of sample logs to larger than you think ??. ie.
-```
-def generate_sample_maintenance_logs(num_records=10000000):
-    """Generate sample maintenance log data"""
-..
-..
-```
-## Useful Commands:
-```
-hdfs namenode -format
-
-start-dfs.sh
-start-yarn.sh
-
-stop-yarn.sh
-stop-dfs.sh
-
-hdfs dfsadmin -report
-
-hdfs dfsadmin -safemode leave
+# Generate sample weather data
+with open('weather_data.txt', 'w') as f:
+    for year in range(2020, 2024):
+        for day in range(1, 366):
+            temp = random.randint(-10, 45)  # Temperature in Celsius
+            date = datetime.date(year, 1, 1) + datetime.timedelta(days=day-1)
+            f.write(f"{date.strftime('%Y-%m-%d')}\t{temp}\n")
 ```
 
-## Next Steps
-Your Hadoop cluster is now ready for MapReduce jobs. The cluster provides:
-* Distributed storage across 3 DataNodes
-* High availability with 3x replication
-* Resource management via YARN
-* Web monitoring interfaces
+## Mapper (mapper.py):
+```
+#!/usr/bin/env python3
+import sys
 
-## Summary of What You'll Get:
-The Installation Guide includes:
-* Prerequisites setup (Java, SSH, users)
-* Hostname configuration for your specific IPs
-* Hadoop installation and configuration
-* Cluster startup and verification steps
-* Troubleshooting tips
+for line in sys.stdin:
+    try:
+        line = line.strip()
+        date, temperature = line.split('\t')
+        year = date.split('-')[0]
+        print(f"{year}\t{temperature}")
+    except ValueError:
+        continue
+```
+
+## Reducer (reducer.py):
+```
+#!/usr/bin/env python3
+import sys
+
+current_year = None
+max_temp = float('-inf')
+
+for line in sys.stdin:
+    try:
+        line = line.strip()
+        year, temp = line.split('\t')
+        temp = int(temp)
+        
+        if current_year == year:
+            max_temp = max(max_temp, temp)
+        else:
+            if current_year:
+                print(f"{current_year}\t{max_temp}")
+            current_year = year
+            max_temp = temp
+    except ValueError:
+        continue
+
+if current_year:
+    print(f"{current_year}\t{max_temp}")
+```
+
+## Run Job
+```
+python3 generate_weather_data.py
+hdfs dfs -rm -r /weather_input /weather_output 2>/dev/null
+hdfs dfs -mkdir /weather_input
+hdfs dfs -put weather_data.txt /weather_input/
+
+hadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming-*.jar \
+    -files mapper.py,reducer.py \
+    -mapper "python3 mapper.py" \
+    -reducer "python3 reducer.py" \
+    -input /input \
+    -output /output
+
+hdfs dfs -cat /weather_output/part-00000
+```
+
+## 2: Temperature Data Analysis
+Difficulty: Beginner-Intermediate
+Time: 1 hour
+## Objective
+Process weather data to find maximum temperatures by year.
+Step-by-Step Instructions
+
+## Generate Sample Weather Data:
+```
+
+```
+
+## Mapper (mapper.py):
+```
+
+```
+
+## Reducer (reducer.py):
+```
+
+```
+
+## Run Job
+```
+hadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming-*.jar \
+    -files mapper.py,reducer.py \
+    -mapper "python3 mapper.py" \
+    -reducer "python3 reducer.py" \
+    -input /input \
+    -output /output
+
+hdfs dfs -cat /output/part-00000
+```
+
+## 2: Temperature Data Analysis
+Difficulty: Beginner-Intermediate
+Time: 1 hour
+## Objective
+Process weather data to find maximum temperatures by year.
+Step-by-Step Instructions
+
+## Generate Sample Weather Data:
+```
+
+```
+
+## Mapper (mapper.py):
+```
+
+```
+
+## Reducer (reducer.py):
+```
+
+```
+
+## Run Job
+```
+hadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming-*.jar \
+    -files mapper.py,reducer.py \
+    -mapper "python3 mapper.py" \
+    -reducer "python3 reducer.py" \
+    -input /input \
+    -output /output
+
+hdfs dfs -cat /output/part-00000
+```
+
+## 2: Temperature Data Analysis
+Difficulty: Beginner-Intermediate
+Time: 1 hour
+## Objective
+Process weather data to find maximum temperatures by year.
+Step-by-Step Instructions
+
+## Generate Sample Weather Data:
+```
+
+```
+
+## Mapper (mapper.py):
+```
+
+```
+
+## Reducer (reducer.py):
+```
+
+```
+
+## Run Job
+```
+hadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming-*.jar \
+    -files mapper.py,reducer.py \
+    -mapper "python3 mapper.py" \
+    -reducer "python3 reducer.py" \
+    -input /input \
+    -output /output
+
+hdfs dfs -cat /output/part-00000
+```
+
+## 2: Temperature Data Analysis
+Difficulty: Beginner-Intermediate
+Time: 1 hour
+## Objective
+Process weather data to find maximum temperatures by year.
+Step-by-Step Instructions
+
+## Generate Sample Weather Data:
+```
+
+```
+
+## Mapper (mapper.py):
+```
+
+```
+
+## Reducer (reducer.py):
+```
+
+```
+
+## Run Job
+```
+hadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming-*.jar \
+    -files mapper.py,reducer.py \
+    -mapper "python3 mapper.py" \
+    -reducer "python3 reducer.py" \
+    -input /input \
+    -output /output
+
+hdfs dfs -cat /output/part-00000
+```
+
+## 2: Temperature Data Analysis
+Difficulty: Beginner-Intermediate
+Time: 1 hour
+## Objective
+Process weather data to find maximum temperatures by year.
+Step-by-Step Instructions
+
+## Generate Sample Weather Data:
+```
+
+```
+
+## Mapper (mapper.py):
+```
+
+```
+
+## Reducer (reducer.py):
+```
+
+```
+
+## Run Job
+```
+hadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming-*.jar \
+    -files mapper.py,reducer.py \
+    -mapper "python3 mapper.py" \
+    -reducer "python3 reducer.py" \
+    -input /input \
+    -output /output
+
+hdfs dfs -cat /output/part-00000
+```
+
+## 2: Temperature Data Analysis
+Difficulty: Beginner-Intermediate
+Time: 1 hour
+## Objective
+Process weather data to find maximum temperatures by year.
+Step-by-Step Instructions
+
+## Generate Sample Weather Data:
+```
+
+```
+
+## Mapper (mapper.py):
+```
+
+```
+
+## Reducer (reducer.py):
+```
+
+```
+
+## Run Job
+```
+hadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming-*.jar \
+    -files mapper.py,reducer.py \
+    -mapper "python3 mapper.py" \
+    -reducer "python3 reducer.py" \
+    -input /input \
+    -output /output
+
+hdfs dfs -cat /output/part-00000
+```
+
+## 2: Temperature Data Analysis
+Difficulty: Beginner-Intermediate
+Time: 1 hour
+## Objective
+Process weather data to find maximum temperatures by year.
+Step-by-Step Instructions
+
+## Generate Sample Weather Data:
+```
+
+```
+
+## Mapper (mapper.py):
+```
+
+```
+
+## Reducer (reducer.py):
+```
+
+```
+
+## Run Job
+```
+hadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming-*.jar \
+    -files mapper.py,reducer.py \
+    -mapper "python3 mapper.py" \
+    -reducer "python3 reducer.py" \
+    -input /input \
+    -output /output
+
+hdfs dfs -cat /output/part-00000
+```
+
+## 2: Temperature Data Analysis
+Difficulty: Beginner-Intermediate
+Time: 1 hour
+## Objective
+Process weather data to find maximum temperatures by year.
+Step-by-Step Instructions
+
+## Generate Sample Weather Data:
+```
+
+```
+
+## Mapper (mapper.py):
+```
+
+```
+
+## Reducer (reducer.py):
+```
+
+```
+
+## Run Job
+```
+hadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming-*.jar \
+    -files mapper.py,reducer.py \
+    -mapper "python3 mapper.py" \
+    -reducer "python3 reducer.py" \
+    -input /input \
+    -output /output
+
+hdfs dfs -cat /output/part-00000
+```
 
 
-## Python MapReduce Test includes:
-* Word count example (classic MapReduce demo)
-* An automated setup script that creates a mapper/reducer
-* Local testing before cluster execution
-* HDFS file operations
-* Result analysis and cluster monitoring
-
-
-## Key Features of Your Setup:
-* NameNode: 192.168.1.33 (hadoop-master) - manages metadata
-* DataNodes: 192.168.1.34-36 - store actual data with 3x replication
-* YARN: Resource management across the cluster
-* Web UIs: Monitor at port 9870 (HDFS) and 8088 (YARN)
-
-## The MapReduce test will verify that:
-* Data is properly distributed across your 3 DataNodes
-* Jobs can be submitted and executed via YARN
-* Results are correctly aggregated
-* The cluster is functioning optimally
-Once you complete the installation, run the test script to ensure everything works. The word count job will process text data and show you the cluster in action with real distributed computing!

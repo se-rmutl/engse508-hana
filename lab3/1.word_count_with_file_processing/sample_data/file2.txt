@@ -1,0 +1,2 @@
+Python is a great programming language.
+Hadoop MapReduce is powerful for big data processing.
