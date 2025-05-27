@@ -30,9 +30,9 @@ chmod +x iot_mapper.py iot_reducer.py
 # Run MapReduce job
 echo "Running IoT MapReduce job..."
 hadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming-*.jar \
-    -files iot_mapper.py,iot_reducer.py \
-    -mapper iot_mapper.py \
-    -reducer iot_reducer.py \
+    -files mapper.py,reducer.py \
+    -mapper mapper.py \
+    -reducer reducer.py \
     -input $INPUT_DIR/iot_sensor_data.json \
     -output $OUTPUT_DIR
 
