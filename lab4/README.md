@@ -976,9 +976,9 @@ echo "Visualizations saved to ecommerce_analysis.png"
 This lab processes IoT sensor data from multiple devices to detect anomalies, calculate aggregations, and generate alerts for monitoring systems.
 
 ### Dataset Description
-*Source: IoT sensor readings (temperature, humidity, pressure, vibration)
-*Format: JSON logs with nested structure
-*Size: Simulating 50M+ sensor readings
+* Source: IoT sensor readings (temperature, humidity, pressure, vibration)
+* Format: JSON logs with nested structure
+* Size: Simulating 50M+ sensor readings
 
 ### IoT Data Generator (generate_iot_data.py)
 ```
@@ -1576,7 +1576,7 @@ if __name__ == "__main__":
 ```
 #!/bin/bash
 
-# Lab 2: IoT Sensor Data ETL Pipeline
+# Lab 4.3: IoT Sensor Data ETL Pipeline
 
 echo "Starting IoT Sensor Data ETL Pipeline..."
 

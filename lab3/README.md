@@ -782,62 +782,166 @@ with open('documents.txt', 'w') as f:
         f.write(doc + '\n')
 ```
 
-## Mapper (mapper.py):
+## TF-IDF Mapper (Phase 1: Term Frequency)
+tfidf_mapper1.py:
+```
+#!/usr/bin/env python3
+import sys
+import re
+from collections import Counter
+
+def clean_word(word):
+    return re.sub(r'[^\w]', '', word.lower())
+
+for line in sys.stdin:
+    try:
+        line = line.strip()
+        parts = line.split('\t')
+        if len(parts) >= 3:
+            doc_id, category, text = parts[0], parts[1], parts[2]
+            
+            words = [clean_word(word) for word in text.split()]
+            words = [word for word in words if word and len(word) > 2]
+            
+            word_counts = Counter(words)
+            total_words = len(words)
+            
+            for word, count in word_counts.items():
+                tf = count / total_words
+                print(f"{word}\t{doc_id}\t{tf}\t1")  # word, doc_id, tf, doc_count
+    except:
+        continue
 ```
 
+## TF-IDF Reducer (Phase 1: Document Frequency)
+tfidf_reducer1.py:
+```
+#!/usr/bin/env python3
+import sys
+
+current_word = None
+docs_tf = []
+doc_count = 0
+
+for line in sys.stdin:
+    try:
+        line = line.strip()
+        word, doc_id, tf, count = line.split('\t')
+        tf = float(tf)
+        count = int(count)
+        
+        if current_word == word:
+            docs_tf.append((doc_id, tf))
+            doc_count += count
+        else:
+            if current_word:
+                # Output word with its document frequency and TF values
+                for doc_id, tf_val in docs_tf:
+                    print(f"{current_word}\t{doc_id}\t{tf_val}\t{doc_count}")
+            
+            current_word = word
+            docs_tf = [(doc_id, tf)]
+            doc_count = count
+    except:
+        continue
+
+if current_word:
+    for doc_id, tf_val in docs_tf:
+        print(f"{current_word}\t{doc_id}\t{tf_val}\t{doc_count}")
 ```
 
-## Reducer (reducer.py):
+## TF-IDF Mapper (Phase 2: Calculate TF-IDF)
+tfidf_mapper2.py:
+```
+#!/usr/bin/env python3
+import sys
+import math
+
+TOTAL_DOCS = 1000  # Total number of documents
+
+for line in sys.stdin:
+    try:
+        line = line.strip()
+        word, doc_id, tf, df = line.split('\t')
+        tf = float(tf)
+        df = int(df)
+        
+        # Calculate IDF
+        idf = math.log(TOTAL_DOCS / df)
+        
+        # Calculate TF-IDF
+        tfidf = tf * idf
+        
+        print(f"{doc_id}\t{word}\t{tfidf}")
+    except:
+        continue
 ```
 
+## TF-IDF Reducer (Phase 2: Aggregate by Document)
+tfidf_reducer2.py:
+```
+#!/usr/bin/env python3
+import sys
+
+current_doc = None
+features = []
+
+for line in sys.stdin:
+    try:
+        line = line.strip()
+        doc_id, word, tfidf = line.split('\t')
+        tfidf = float(tfidf)
+        
+        if current_doc == doc_id:
+            features.append((word, tfidf))
+        else:
+            if current_doc:
+                # Sort features by TF-IDF score and take top 20
+                features.sort(key=lambda x: x[1], reverse=True)
+                top_features = features[:20]
+                
+                feature_str = ' '.join([f"{word}:{tfidf:.4f}" for word, tfidf in top_features])
+                print(f"{current_doc}\t{feature_str}")
+            
+            current_doc = doc_id
+            features = [(word, tfidf)]
+    except:
+        continue
+
+if current_doc:
+    features.sort(key=lambda x: x[1], reverse=True)
+    top_features = features[:20]
+    feature_str = ' '.join([f"{word}:{tfidf:.4f}" for word, tfidf in top_features])
+    print(f"{current_doc}\t{feature_str}")
 ```
 
-## Run Job
+## Execute Multi-Stage Pipeline
 ```
+python3 generate_documents.py
+
+# Stage 1: Calculate TF and DF
+hdfs dfs -rm -r /ml_input /ml_stage1 /ml_output 2>/dev/null
+hdfs dfs -mkdir /ml_input
+hdfs dfs -put documents.txt /ml_input/
+
 hadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming-*.jar \
-    -files mapper.py,reducer.py \
-    -mapper "python3 mapper.py" \
-    -reducer "python3 reducer.py" \
-    -input /input \
-    -output /output
+    -files tfidf_mapper1.py,tfidf_reducer1.py \
+    -mapper "python3 tfidf_mapper1.py" \
+    -reducer "python3 tfidf_reducer1.py" \
+    -input /ml_input \
+    -output /ml_stage1
 
-hdfs dfs -cat /output/part-00000
-```
-
-## 2: Temperature Data Analysis
-Difficulty: Beginner-Intermediate
-Time: 1 hour
-## Objective
-Process weather data to find maximum temperatures by year.
-Step-by-Step Instructions
-
-## Generate Sample Weather Data:
-```
-
-```
-
-## Mapper (mapper.py):
-```
-
-```
-
-## Reducer (reducer.py):
-```
-
-```
-
-## Run Job
-```
+# Stage 2: Calculate TF-IDF
 hadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming-*.jar \
-    -files mapper.py,reducer.py \
-    -mapper "python3 mapper.py" \
-    -reducer "python3 reducer.py" \
-    -input /input \
-    -output /output
+    -files tfidf_mapper2.py,tfidf_reducer2.py \
+    -mapper "python3 tfidf_mapper2.py" \
+    -reducer "python3 tfidf_reducer2.py" \
+    -input /ml_stage1 \
+    -output /ml_output
 
-hdfs dfs -cat /output/part-00000
+# View results
+hdfs dfs -cat /ml_output/part-00000 | head -10
 ```
-
 ## Lab Progression Summary:
 Beginner (Labs 1-3):
 
